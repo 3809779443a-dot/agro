@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <title>AgroMap • FJDynamics AT2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AgroMap">
+  <meta name="theme-color" content="#0d1117">
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+  <!-- MapLibre GL CSS & JS (Offline compatible & fast) -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0d1117;
+      color: #f0f6fc;
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    #map {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Safe Area Insets for iPhone 16 Pro Max */
+    :root {
+      --sat: env(safe-area-inset-top, 47px);
+      --sab: env(safe-area-inset-bottom, 34px);
+      --sal: env(safe-area-inset-left, 0px);
+      --sar: env(safe-area-inset-right, 0px);
+      --accent: #2ec4b6;
+      --accent-glow: rgba(46, 196, 182, 0.45);
+      --orange: #ff9f1c;
+      --dark-card: rgba(18, 22, 33, 0.92);
+      --card-border: rgba(255, 255, 255, 0.12);
+    }
+
+    /* Top Floating Header */
+    .top-bar {
+      position: absolute;
+      top: calc(var(--sat) + 8px);
+      left: 14px;
+      right: 14px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .brand-pill {
+      pointer-events: auto;
+      background: var(--dark-card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+    .brand-pill .logo-icon {
+      font-size: 18px;
+    }
+    .brand-pill .title {
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+      color: #fff;
+    }
+    .brand-pill .badge {
+      background: rgba(46, 196, 182, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(46, 196, 182, 0.4);
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+    .glass-btn {
+      background: var(--dark-card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      color: #fff;
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+    .glass-btn:active {
+      transform: scale(0.92);
+      background: rgba(46, 196, 182, 0.25);
+    }
+    .glass-btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: #00f2ff;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    /* Floating Village Selector */
+    .village-chip-scroll {
+      position: absolute;
+      top: calc(var(--sat) + 58px);
+      left: 14px;
+      right: 14px;
+      z-index: 10;
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      pointer-events: auto;
+    }
+    .village-chip-scroll::-webkit-scrollbar {
+      display: none;
+    }
+    .v-chip {
+      white-space: nowrap;
+      background: var(--dark-card);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      color: #cbd5e1;
+      padding: 6px 12px;
+      border-radius: 14px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .v-chip.active {
+      background: var(--accent);
+      color: #000;
+      border-color: #fff;
+      font-weight: 700;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    /* Right Control Panel */
+    .right-tools {
+      position: absolute;
+      right: 14px;
+      bottom: calc(var(--sab) + 120px);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Bottom Info Card / Drawer */
+    .bottom-drawer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      background: var(--dark-card);
+      border-top: 1px solid var(--card-border);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border-radius: 26px 26px 0 0;
+      padding: 12px 18px calc(var(--sab) + 14px) 18px;
+      box-shadow: 0 -12px 36px rgba(0,0,0,0.65);
+      transform: translateY(calc(100% - 92px));
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .bottom-drawer.expanded {
+      transform: translateY(0);
+    }
+    .drawer-handle {
+      width: 44px;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.35);
+      border-radius: 4px;
+      margin: 0 auto 10px auto;
+      cursor: pointer;
+    }
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+    .drawer-title-group h2 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .drawer-title-group p {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .drawer-quick-btn {
+      background: linear-gradient(135deg, #2ec4b6, #00b4d8);
+      border: none;
+      color: #000;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 8px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px var(--accent-glow);
+    }
+
+    /* Layer Switcher & Settings inside Drawer */
+    .drawer-body {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      max-height: 55vh;
+      overflow-y: auto;
+    }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .setting-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+    .setting-card.active {
+      border-color: var(--accent);
+      background: rgba(46, 196, 182, 0.12);
+    }
+    .setting-label {
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    .setting-sub {
+      font-size: 9.5px;
+      color: #94a3b8;
+    }
+
+    /* Satellite Selector Buttons */
+    .sat-selector {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .sat-btn {
+      flex: 1;
+      min-width: 80px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 7px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #cbd5e1;
+      text-align: center;
+      cursor: pointer;
+    }
+    .sat-btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: #fff;
+    }
+
+    /* FJDynamics Modal */
+    .fjd-modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.78);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .fjd-modal-backdrop.show {
+      display: flex;
+    }
+    .fjd-modal-card {
+      background: #141824;
+      border: 1.5px solid #2ec4b6;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.85), 0 0 24px rgba(46, 196, 182, 0.35);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 440px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .fjd-modal-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #2ec4b6;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .fjd-ab-box {
+      background: #0d1117;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+    }
+    .fjd-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .fjd-val {
+      color: #00f2ff;
+      font-weight: 600;
+    }
+    .fjd-copy-btn {
+      background: #2ec4b6;
+      color: #000;
+      font-weight: 800;
+      font-size: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      text-align: center;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .fjd-copy-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      top: calc(var(--sat) + 20px);
+      left: 50%;
+      transform: translateX(-50%) translateY(-100px);
+      background: #2ec4b6;
+      color: #000;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 10px 18px;
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      z-index: 200;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Map Container -->
+  <div id="map"></div>
+
+  <!-- Top Floating Bar -->
+  <div class="top-bar">
+    <div class="brand-pill">
+      <span class="logo-icon">🚜</span>
+      <span class="title">AGRO FEODAL</span>
+      <span class="badge">AT2 HD</span>
+    </div>
+    <div class="top-actions">
+      <button class="glass-btn" id="btn-gps" title="Моє місцезнаходження (GPS)">📍</button>
+      <button class="glass-btn" id="btn-compass" title="Компас / Північ">🧭</button>
+      <button class="glass-btn" id="btn-menu" title="Шари та налаштування">⚙️</button>
+    </div>
+  </div>
+
+  <!-- Village Quick Chips -->
+  <div class="village-chip-scroll" id="village-chips">
+    <div class="v-chip active" data-bounds="all">Усі поля</div>
+  </div>
+
+  <!-- Right Floating Action Tools -->
+  <div class="right-tools">
+    <button class="glass-btn" id="btn-zoom-in">＋</button>
+    <button class="glass-btn" id="btn-zoom-out">－</button>
+    <button class="glass-btn" id="btn-fjd-tool" title="FJDynamics AB лінія">🎯</button>
+  </div>
+
+  <!-- Bottom Drawer Control Center -->
+  <div class="bottom-drawer" id="drawer">
+    <div class="drawer-handle" id="drawer-handle"></div>
+    <div class="drawer-header" id="drawer-header">
+      <div class="drawer-title-group">
+        <h2 id="selected-field-title">🌾 Оберіть ділянку або поле</h2>
+        <p id="selected-field-sub">Торкніться на карті або увімкніть автопілот AB</p>
+      </div>
+      <button class="drawer-quick-btn" id="btn-quick-ab">FJD AT2 📋</button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- Satellite Substrates -->
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Супутник HD</div>
+        <div class="sat-selector">
+          <div class="sat-btn active" data-sat="esri">ESRI 0.3m HD</div>
+          <div class="sat-btn" data-sat="google">Google HD</div>
+          <div class="sat-btn" data-sat="bing">Bing HD</div>
+          <div class="sat-btn" data-sat="osm">Карта</div>
+        </div>
+      </div>
+
+      <!-- Layers Toggles -->
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Шари карти</div>
+        <div class="settings-grid">
+          <div class="setting-card active" id="toggle-parcels">
+            <div>
+              <div class="setting-label">Кадастрові паї</div>
+              <div class="setting-sub">Контури та реєстр</div>
+            </div>
+            <span>✓</span>
+          </div>
+          <div class="setting-card active" id="toggle-cropio">
+            <div>
+              <div class="setting-label">Межі обробітку</div>
+              <div class="setting-sub">Фактичні поля</div>
+            </div>
+            <span>✓</span>
+          </div>
+          <div class="setting-card active" id="toggle-labels">
+            <div>
+              <div class="setting-label">Назва та площа</div>
+              <div class="setting-sub">Номери та га</div>
+            </div>
+            <span>✓</span>
+          </div>
+          <div class="setting-card active" id="toggle-fjd-coords">
+            <div>
+              <div class="setting-label">Координати AB</div>
+              <div class="setting-sub">Мітки FJDynamics</div>
+            </div>
+            <span>✓</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FJDynamics AT2 Modal -->
+  <div class="fjd-modal-backdrop" id="fjd-modal">
+    <div class="fjd-modal-card">
+      <div class="fjd-modal-title">
+        <span>🚜 FJDynamics Autopilot AT2</span>
+        <span style="cursor:pointer; font-size:18px;" id="fjd-modal-close">✕</span>
+      </div>
+      <div style="font-size: 11px; color: #94a3b8;" id="fjd-parcel-name">Ділянка / Поле</div>
+
+      <!-- Point A -->
+      <div class="fjd-ab-box">
+        <div style="color: #2ec4b6; font-weight: 700; font-size: 12px;">ТОЧКА A (Початок)</div>
+        <div class="fjd-row">
+          <span>*Широта (A):</span>
+          <span class="fjd-val" id="fjd-lat-a">0.00000000°</span>
+        </div>
+        <div class="fjd-row">
+          <span>*Довгота (A):</span>
+          <span class="fjd-val" id="fjd-lon-a">0.00000000°</span>
+        </div>
+        <div class="fjd-row">
+          <span>Висота (A):</span>
+          <span class="fjd-val">0.000m</span>
+        </div>
+      </div>
+
+      <!-- Point B -->
+      <div class="fjd-ab-box">
+        <div style="color: #ff9f1c; font-weight: 700; font-size: 12px;">ТОЧКА B (Кінець)</div>
+        <div class="fjd-row">
+          <span>*Широта (B):</span>
+          <span class="fjd-val" id="fjd-lat-b">0.00000000°</span>
+        </div>
+        <div class="fjd-row">
+          <span>*Довгота (B):</span>
+          <span class="fjd-val" id="fjd-lon-b">0.00000000°</span>
+        </div>
+        <div class="fjd-row">
+          <span>Висота (B):</span>
+          <span class="fjd-val">0.000m</span>
+        </div>
+      </div>
+
+      <div class="fjd-row" style="font-size: 11px; color: #cbd5e1; padding: 0 4px;">
+        <span>Довжина гону AB:</span>
+        <span style="font-weight: 700; color: #fff;" id="fjd-dist">0 м</span>
+      </div>
+
+      <button class="fjd-copy-btn" id="fjd-copy-all-btn">📋 Скопіювати координати для терміналу</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast">Повідомлення</div>
+
+  <script>
+    // Register Service Worker for Offline PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then(() => {
+          console.log('AgroMap Service Worker зареєстровано успішно!');
+        }).catch(err => console.log('SW registration error:', err));
+      });
+    }
+
+    // UI Helper: Toast
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2600);
+    }
+
+    // Satellite Raster Tile Sources
+    const SATELLITE_STYLES = {
+      esri: {
+        version: 8,
+        sources: {
+          'esri-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+              'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            ],
+            tileSize: 256,
+            maxzoom: 19
+          }
+        },
+        layers: [{ id: 'base-raster', type: 'raster', source: 'esri-tiles', minzoom: 0, maxzoom: 22 }]
+      },
+      google: {
+        version: 8,
+        sources: {
+          'google-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://mt0.google.com/vt/lyrs=s&hl=uk&x={x}&y={y}&z={z}',
+              'https://mt1.google.com/vt/lyrs=s&hl=uk&x={x}&y={y}&z={z}',
+              'https://mt2.google.com/vt/lyrs=s&hl=uk&x={x}&y={y}&z={z}'
+            ],
+            tileSize: 256,
+            maxzoom: 20
+          }
+        },
+        layers: [{ id: 'base-raster', type: 'raster', source: 'google-tiles', minzoom: 0, maxzoom: 22 }]
+      },
+      bing: {
+        version: 8,
+        sources: {
+          'bing-tiles': {
+            type: 'raster',
+            tiles: ['https://ecn.t1.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=1'],
+            tileSize: 256,
+            maxzoom: 19
+          }
+        },
+        layers: [{ id: 'base-raster', type: 'raster', source: 'bing-tiles', minzoom: 0, maxzoom: 22 }]
+      },
+      osm: {
+        version: 8,
+        sources: {
+          'osm-tiles': {
+            type: 'raster',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            maxzoom: 19
+          }
+        },
+        layers: [{ id: 'base-raster', type: 'raster', source: 'osm-tiles', minzoom: 0, maxzoom: 22 }]
+      }
+    };
+
+    // Initialize MapLibre
+    window.map = new maplibregl.Map({
+      container: 'map',
+      style: SATELLITE_STYLES.esri,
+      center: [29.688, 48.905], // Narayivka center
+      zoom: 13.5,
+      pitch: 0,
+      bearing: 0,
+      attributionControl: false
+    });
+
+    let currentSelectedFeature = null;
+
+    // Load GeoJSON data into MapLibre
+    console.log('Attaching load event listener'); window.map.on('load', async () => { console.log('Map load triggered!');
+      try {
+        const [parcelsRes, cropRes, councilsRes] = await Promise.all([
+          fetch('parcels.geojson').then(r => r.json()),
+          fetch('crop_fields.geojson').then(r => r.json()),
+          fetch('councils.json').then(r => r.json())
+        ]);
+
+        // Render Village Quick Chips
+        const chipsContainer = document.getElementById('village-chips');
+        councilsRes.forEach(c => {
+          const chip = document.createElement('div');
+          chip.className = 'v-chip';
+          chip.textContent = c.village || c.name || 'Рада';
+          chip.addEventListener('click', () => {
+            document.querySelectorAll('.v-chip').forEach(el => el.classList.remove('active'));
+            chip.classList.add('active');
+            if (c.center) {
+              map.flyTo({ center: [c.center[1], c.center[0]], zoom: 14.5, speed: 1.4 });
+            }
+          });
+          chipsContainer.appendChild(chip);
+        });
+
+        // Add Parcels Source & Layers
+        window.map.addSource('parcels-src', {
+          type: 'geojson',
+          data: parcelsRes
+        });
+
+        window.map.addLayer({
+          id: 'parcels-fill',
+          type: 'fill',
+          source: 'parcels-src',
+          paint: {
+            'fill-color': ['coalesce', ['get', 'color'], '#77D1D6'],
+            'fill-opacity': 0.22
+          }
+        });
+
+        window.map.addLayer({
+          id: 'parcels-line',
+          type: 'line',
+          source: 'parcels-src',
+          paint: {
+            'line-color': '#0d1117',
+            'line-width': 0.8,
+            'line-opacity': 0.95
+          }
+        });
+
+        // Add Crop Fields Source & Layers
+        window.map.addSource('crop-src', {
+          type: 'geojson',
+          data: cropRes
+        });
+
+        window.map.addLayer({
+          id: 'crop-fill',
+          type: 'fill',
+          source: 'crop-src',
+          paint: {
+            'fill-color': ['coalesce', ['get', 'color'], '#ff9f1c'],
+            'fill-opacity': 0.28
+          }
+        });
+
+        window.map.addLayer({
+          id: 'crop-line',
+          type: 'line',
+          source: 'crop-src',
+          paint: {
+            'line-color': '#ff9f1c',
+            'line-width': 1.8
+          }
+        });
+
+        window.map.addLayer({
+          id: 'crop-label',
+          type: 'symbol',
+          source: 'crop-src',
+          layout: {
+            'text-field': [
+              'format',
+              ['coalesce', ['get', 'name'], ['get', 'field_number'], 'Поле'],
+              { 'font-scale': 0.85, 'text-color': '#ffffff' },
+              '\n',
+              {},
+              ['concat', ['to-string', ['round', ['get', 'area']]], ' га'],
+              { 'font-scale': 0.75, 'text-color': '#ff9f1c' }
+            ],
+            'text-size': 13,
+            'text-anchor': 'center',
+            'text-allow-overlap': false
+          },
+          paint: {
+            'text-halo-color': '#000000',
+            'text-halo-width': 1.5
+          }
+        });
+
+        // Feature Click Event: Select parcel/crop and update Drawer / FJD
+        const onFeatureClick = (e) => {
+          if (!e.features || !e.features.length) return;
+          const feat = e.features[0];
+          currentSelectedFeature = feat;
+          const props = feat.properties || {};
+
+          const title = props.cadnum || props.name || props.field_number || 'Земельна ділянка';
+          const area = props.area ? `${Number(props.area).toFixed(2)} га` : '';
+          const owner = props.tenant || props.owner || '';
+
+          document.getElementById('selected-field-title').innerHTML = `🌾 <span>${title}</span>`;
+          document.getElementById('selected-field-sub').textContent = `${area} ${owner ? '• ' + owner : ''}`.trim();
+          
+          openFjdModalForFeature(feat);
+        };
+
+        window.map.on('click', 'parcels-fill', onFeatureClick);
+        window.map.on('click', 'crop-fill', onFeatureClick);
+
+        showToast('✓ Усі дані полів та кадастру завантажено в телефон');
+      } catch (err) {
+        console.error('Error loading layers:', err);
+      }
+    });
+
+    // FJDynamics Coordinate Calculation for AB line
+    function openFjdModalForFeature(feat) {
+      if (!feat || !feat.geometry) return;
+      const geom = feat.geometry;
+      let ring = null;
+      if (geom.type === 'Polygon') {
+        ring = geom.coordinates[0];
+      } else if (geom.type === 'MultiPolygon') {
+        ring = geom.coordinates[0][0];
+      }
+      if (!ring || ring.length < 2) return;
+
+      // Find longest edge for optimal AB tractor track
+      let maxDist = -1;
+      let bestA = ring[0];
+      let bestB = ring[1];
+
+      for (let i = 0; i < ring.length - 1; i++) {
+        const p1 = ring[i];
+        const p2 = ring[i + 1];
+        const dx = (p2[0] - p1[0]) * Math.cos(p1[1] * Math.PI / 180) * 111320;
+        const dy = (p2[1] - p1[1]) * 110540;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxDist) {
+          maxDist = dist;
+          bestA = p1;
+          bestB = p2;
+        }
+      }
+
+      // Point A & B (MapLibre returns [lon, lat])
+      const lonA = bestA[0].toFixed(8);
+      const latA = bestA[1].toFixed(8);
+      const lonB = bestB[0].toFixed(8);
+      const latB = bestB[1].toFixed(8);
+
+      document.getElementById('fjd-parcel-name').textContent = feat.properties?.cadnum || feat.properties?.name || 'Поточна ділянка';
+      document.getElementById('fjd-lat-a').textContent = latA + '°';
+      document.getElementById('fjd-lon-a').textContent = lonA + '°';
+      document.getElementById('fjd-lat-b').textContent = latB + '°';
+      document.getElementById('fjd-lon-b').textContent = lonB + '°';
+      document.getElementById('fjd-dist').textContent = Math.round(maxDist) + ' м';
+
+      // Setup Copy Handler
+      document.getElementById('fjd-copy-all-btn').onclick = () => {
+        const text = [
+          'FJDynamics Autopilot AT2 (Цільова лінія AB)',
+          'Ділянка: ' + (feat.properties?.cadnum || feat.properties?.name || 'Поле'),
+          'Точка A: ' + latA + '°, ' + lonA + '°, 0.000m',
+          'Точка B: ' + latB + '°, ' + lonB + '°, 0.000m',
+          'Відстань: ' + Math.round(maxDist) + ' м'
+        ].join('\n');
+
+        navigator.clipboard.writeText(text).then(() => {
+          showToast('✓ Координати AB скопійовано для терміналу FJDynamics!');
+          document.getElementById('fjd-modal').classList.remove('show');
+        });
+      };
+    }
+
+    // Modal Events
+    document.getElementById('btn-quick-ab').addEventListener('click', () => {
+      if (currentSelectedFeature) {
+        document.getElementById('fjd-modal').classList.add('show');
+      } else {
+        showToast('Спочатку торкніться потрібного поля на карті');
+      }
+    });
+    document.getElementById('btn-fjd-tool').addEventListener('click', () => {
+      if (currentSelectedFeature) {
+        document.getElementById('fjd-modal').classList.add('show');
+      } else {
+        showToast('Оберіть поле на карті для розрахунку AB');
+      }
+    });
+    document.getElementById('fjd-modal-close').addEventListener('click', () => {
+      document.getElementById('fjd-modal').classList.remove('show');
+    });
+
+    // Drawer Toggle / Expand
+    const drawer = document.getElementById('drawer');
+    const toggleDrawer = () => drawer.classList.toggle('expanded');
+    document.getElementById('drawer-handle').addEventListener('click', toggleDrawer);
+    document.getElementById('btn-menu').addEventListener('click', toggleDrawer);
+
+    // Zoom Controls
+    document.getElementById('btn-zoom-in').addEventListener('click', () => map.zoomIn({ duration: 300 }));
+    document.getElementById('btn-zoom-out').addEventListener('click', () => map.zoomOut({ duration: 300 }));
+    document.getElementById('btn-compass').addEventListener('click', () => map.resetNorthPitch({ duration: 400 }));
+
+    // GPS Geolocation Handler for Tractor / Field Walk
+    let gpsMarker = null;
+    let watchId = null;
+    const btnGps = document.getElementById('btn-gps');
+
+    btnGps.addEventListener('click', () => {
+      if (!navigator.geolocation) {
+        showToast('Геолокація не підтримується на цьому пристрої');
+        return;
+      }
+
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        btnGps.classList.remove('active');
+        if (gpsMarker) gpsMarker.remove();
+        showToast('GPS вимкнено');
+        return;
+      }
+
+      showToast('Увімкнення GPS високої точності...');
+      btnGps.classList.add('active');
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const lng = pos.coords.longitude;
+          const lat = pos.coords.latitude;
+
+          if (!gpsMarker) {
+            const el = document.createElement('div');
+            el.innerHTML = '🚜';
+            el.style.fontSize = '26px';
+            el.style.filter = 'drop-shadow(0 0 10px #2ec4b6)';
+            gpsMarker = new maplibregl.Marker({ element: el })
+              .setLngLat([lng, lat])
+              .addTo(map);
+
+            map.flyTo({ center: [lng, lat], zoom: 16.5, speed: 1.5 });
+          } else {
+            gpsMarker.setLngLat([lng, lat]);
+          }
+        },
+        (err) => {
+          console.error(err);
+          showToast('Помилка визначення координат GPS');
+          btnGps.classList.remove('active');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+
+    // Satellite Switcher
+    document.querySelectorAll('.sat-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.sat-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const satKey = btn.dataset.sat;
+        if (SATELLITE_STYLES[satKey]) {
+          // Change raster tile source without reloading vector layers
+          const newSource = SATELLITE_STYLES[satKey].sources[Object.keys(SATELLITE_STYLES[satKey].sources)[0]];
+          if (map.getSource('base-raster-src')) {
+            map.removeLayer('base-raster');
+            map.removeSource('base-raster-src');
+          }
+          window.map.addSource('base-raster-src', newSource);
+          window.map.addLayer({
+            id: 'base-raster',
+            type: 'raster',
+            source: 'base-raster-src'
+          }, 'parcels-fill');
+        }
+      });
+    });
+
+    // Layer Toggle Buttons
+    function bindLayerToggle(btnId, layerIds) {
+      const btn = document.getElementById(btnId);
+      btn.addEventListener('click', () => {
+        btn.classList.toggle('active');
+        const isVisible = btn.classList.contains('active');
+        const vis = isVisible ? 'visible' : 'none';
+        layerIds.forEach(id => {
+          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+        });
+      });
+    }
+
+    bindLayerToggle('toggle-parcels', ['parcels-fill', 'parcels-line']);
+    bindLayerToggle('toggle-cropio', ['crop-fill', 'crop-line']);
+    bindLayerToggle('toggle-labels', ['crop-label']);
+  </script>
+</body>
+</html>
